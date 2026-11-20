@@ -51,7 +51,30 @@ Contrairement à une analyse du HTML, l'extension se base sur ce que le navigate
 ## Images WebP/AVIF → PNG
 
 Activé par défaut (case *WebP/AVIF → PNG* au-dessus du dossier, mémorisée). Le format réel est lu
-dans le fichier (`image.png?format=webply` est bien converti). WebP animé → première image seulement.
+dans chaque image, même si son URL ou son type MIME masque le WebP/AVIF
+(`image.png?format=webply` est bien converti). WebP animé → première image seulement.
+
+## Images originales
+
+Coche **Images originales** au-dessus du dossier pour télécharger les images et SVG
+en retirant les paramètres de redimensionnement/recadrage de leur URL (`w`, `width`,
+`wid`, `h`, `height`, `hei`, `maxwidth`, `maxheight`, leurs variantes avec tiret ou
+underscore, `resize`, `size`, `fit`, `crop`, `rect`, `dpr`, `scale`, `scl`,
+`imwidth`, `imheight`, `imagewidth`, `imageheight`).
+Le choix est mémorisé et désactivé par défaut. Les autres types d'assets sont inchangés.
+
+Les URLs réseau des proxies Next.js (`/_next/image?url=…`) et Cloudflare
+(`/cdn-cgi/image/…/source`) sont remplacées par l'URL source avant nettoyage.
+Le fichier prend le nom de cette source.
+
+La conversion **WebP/AVIF → PNG** reste indépendante : coche-la pour convertir
+également les originaux, décoche-la pour garder les octets servis. Les autres paramètres
+(format, qualité, tokens…) sont conservés tels quels. Les aperçus, tailles et dimensions
+affichés restent ceux de la version captée par le navigateur.
+
+La version originale dépend du serveur : les transformations dans le chemin de l'URL
+des services non reconnus ne sont pas retirées, et une URL signée peut être refusée après modification.
+En cas d'échec, décoche l'option pour télécharger la version affichée.
 
 ## Limites (sécurité Chrome)
 

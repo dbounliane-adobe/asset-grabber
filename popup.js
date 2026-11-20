@@ -48,6 +48,7 @@ const el = {
   footer: document.getElementById("footer"),
   folder: document.getElementById("folderInput"),
   png: document.getElementById("pngToggle"),
+  original: document.getElementById("originalToggle"),
   download: document.getElementById("downloadBtn"),
   selCount: document.getElementById("selCount"),
   toast: document.getElementById("toast"),
@@ -72,6 +73,7 @@ const selected = new Set();
 let activeTypes = new Set();
 let savedFolder = ""; // dossier mémorisé ; vide = nom d'hôte de l'onglet
 let toPng = true;     // WebP/AVIF convertis en PNG au téléchargement
+let originalImages = false;
 let recording = false;
 let tabId = null;
 let tabTitle = "";
@@ -104,6 +106,12 @@ async function init() {
   document.getElementById("themeBtn").addEventListener("click", toggleTheme);
   chrome.runtime.onMessage.addListener(onHlsProgress);
   el.png.checked = toPng;
+  el.original.checked = originalImages;
+  el.original.addEventListener("change", () => {
+    originalImages = el.original.checked;
+    saveSettings();
+    if (assets.length) render();
+  });
   el.png.addEventListener("change", () => { toPng = el.png.checked; saveSettings(); if (assets.length) render(); });
   el.folder.addEventListener("input", () => { savedFolder = safeFolder(el.folder.value.trim()); saveSettings(); });
 
@@ -118,10 +126,11 @@ async function loadSettings() {
     if (settings && Array.isArray(settings.types)) activeTypes = new Set(settings.types);
     if (settings && typeof settings.folder === "string") savedFolder = settings.folder;
     if (settings && typeof settings.toPng === "boolean") toPng = settings.toPng;
+    if (settings && typeof settings.originalImages === "boolean") originalImages = settings.originalImages;
   } catch (_) {}
 }
 function saveSettings() {
-  chrome.storage.local.set({ settings: { types: [...activeTypes], folder: savedFolder, toPng } }).catch(() => {});
+  chrome.storage.local.set({ settings: { types: [...activeTypes], folder: savedFolder, toPng, originalImages } }).catch(() => {});
 }
 function isVisible(a) { return activeTypes.size === 0 || activeTypes.has(a.type); }
 function toggleFilter(key) {
@@ -447,6 +456,8 @@ function updateSelectionUI() {
 async function runDownload() {
   const folder = safeFolder(el.folder.value.trim()) || "assets";
   const chosen = assets.filter((a) => selected.has(a.id));
+  const originals = originalImages;
+  const convertImages = toPng;
   if (!chosen.length) return;
 
   el.download.disabled = true;
@@ -455,6 +466,8 @@ async function runDownload() {
   let ok = 0, fail = 0, streams = 0, pngs = 0;
 
   for (const a of chosen) {
+    const image = a.type === "image" || a.type === "svg";
+    const url = originals && image ? originalImageUrl(a.url) : a.url;
     if (a.stream === "hls") {
       // assemblé en arrière-plan (document offscreen) : continue si le popup se ferme
       let base = hlsBaseName(a);
@@ -465,21 +478,22 @@ async function runDownload() {
       if (r && r.ok) streams++; else fail++;
       continue;
     }
-    let name = a.name || "asset";
+    const sourceName = originals && image ? fileNameFromUrl(url, a.type) : a.name;
+    let name = sourceName || "asset";
     const ext = (name.match(/(\.[^.]+)$/) || [""])[0];
     let base = ext ? name.slice(0, -ext.length) : name;
-    const n = used.get(a.name) || 0;
+    const n = used.get(sourceName) || 0;
     if (n > 0) { name = base + "-" + n + ext; base += "-" + n; }
-    used.set(a.name, n + 1);
-    if (toPng && convertible(a)) {
+    used.set(sourceName, n + 1);
+    if (convertImages && a.type === "image") {
       // décodé puis réencodé en PNG hors du popup ; le vrai format est lu dans les octets
-      const r = await bg({ cmd: "image", job: { url: a.url, filename: folder + "/" + base, origName: folder + "/" + name } });
+      const r = await bg({ cmd: "image", job: { url, filename: folder + "/" + base, origName: folder + "/" + name } });
       if (r && r.ok) { ok++; if (r.converted) pngs++; } else fail++;
       continue;
     }
     try {
       await chrome.downloads.download({
-        url: a.url, filename: folder + "/" + name,
+        url, filename: folder + "/" + name,
         conflictAction: "uniquify", saveAs: false,
       });
       ok++;
@@ -493,6 +507,46 @@ async function runDownload() {
   toast((parts.join(" + ") || "Rien") + " → Téléchargements/" + folder + (fail ? " · " + fail + " échec(s)" : ""),
         fail ? "err" : "ok");
   el.download.disabled = false;
+}
+
+const IMAGE_RESIZE_PARAMS = new Set([
+  "w", "width", "wid", "h", "height", "hei",
+  "maxwidth", "maxheight", "max-width", "max-height", "max_width", "max_height",
+  "resize", "size", "fit", "crop", "rect", "dpr", "scale", "scl",
+  "imwidth", "imheight", "imagewidth", "imageheight",
+]);
+function originalImageUrl(url, depth = 0) {
+  try {
+    const parsed = new URL(url);
+    if (!/^https?:$/.test(parsed.protocol)) return url;
+    if (depth < 4) {
+      let source = null;
+      if (/(?:^|\/)_next\/image$/.test(parsed.pathname)) source = parsed.searchParams.get("url");
+      const cloudflare = /^\/cdn-cgi\/image\/[^/]+\/(.+)$/.exec(parsed.pathname);
+      if (cloudflare) source = cloudflare[1] + parsed.search;
+      if (source) {
+        const original = new URL(source, parsed.origin + "/");
+        if (/^https?:$/.test(original.protocol) && original.href !== parsed.href) {
+          return originalImageUrl(original.href, depth + 1);
+        }
+      }
+    }
+    const hashAt = url.indexOf("#");
+    const hash = hashAt < 0 ? "" : url.slice(hashAt);
+    const head = hashAt < 0 ? url : url.slice(0, hashAt);
+    const queryAt = head.indexOf("?");
+    if (queryAt < 0) return url;
+    const params = head.slice(queryAt + 1).split("&");
+    const kept = params.filter((param) => {
+      try {
+        const key = decodeURIComponent(param.split("=")[0].replace(/\+/g, " ")).toLowerCase();
+        return !IMAGE_RESIZE_PARAMS.has(key);
+      } catch { return true; }
+    });
+    if (kept.length === params.length) return url;
+    // Ne pas réencoder les paramètres conservés (tokens, signatures, URLs imbriquées).
+    return head.slice(0, queryAt) + (kept.length ? "?" + kept.join("&") : "") + hash;
+  } catch { return url; }
 }
 
 /* WebP/AVIF probable : extension, MIME, ou paramètre d'URL (ex. ?format=webply) */
