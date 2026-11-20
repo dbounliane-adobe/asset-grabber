@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">Asset Grabber</span>
+      </div>
+      <div class="topbar-right">
+        <span id="statusChip" class="chip chip--idle">prêt</span>
+        <button id="themeBtn" class="icon-btn" type="button">
+          <svg class="i-moon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 9.6A5.5 5.5 0 0 1 6.4 2.5a5.5 5.5 0 1 0 7.1 7.1Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <svg class="i-sun" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="2.8" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="scanbar">
+      <input id="urlInput" type="text" class="url-input" spellcheck="false"
+             placeholder="https://exemple.com" />
+      <button id="scanBtn" class="btn btn--primary">Scanner</button>
+    </section>
+
+    <section class="reccontrols">
+      <button id="recordBtn" class="rec"><span class="rec-dot" aria-hidden="true"></span><span id="recLabel">Enregistrer le trafic</span></button>
+      <button id="reloadBtn" class="btn btn--ghost">↻ Recharger + enregistrer</button>
+      <span id="recInfo" class="rec-info"></span>
+    </section>
+
+    <p id="scanHint" class="hint">
+      Le scan lit les <b>appels réseau</b> de la page (Resource Timing) : images, CSS, JS,
+      polices, média, XHR/fetch. Pour tout capter (lazy-load, requêtes JS), lance
+      l'enregistrement puis recharge/scrolle la page.
+    </p>
+
+    <section id="toolbar" class="toolbar" hidden>
+      <div id="filters" class="filters"></div>
+    </section>
+
+    <main id="grid" class="grid">
+      <div id="emptyState" class="empty">
+        <div class="empty-glyph" aria-hidden="true"></div>
+        <p class="empty-title">Aucun scan pour l'instant</p>
+        <p class="empty-sub">Lance un scan pour lister les appels réseau de la page.</p>
+      </div>
+    </main>
+
+    <footer id="footer" class="footer" hidden>
+      <div class="folder-field">
+        <div class="folder-head">
+          <label for="folderInput" class="folder-label">Dossier</label>
+          <label class="opt"><input id="pngToggle" type="checkbox" checked> WebP/AVIF → PNG</label>
+        </div>
+        <div class="folder-wrap">
+          <span class="folder-prefix">Téléchargements /</span>
+          <input id="folderInput" type="text" class="folder-input" spellcheck="false" />
+        </div>
+      </div>
+      <button id="selectAllBtn" class="btn btn--secondary btn--selall">Tout cocher</button>
+      <button id="downloadBtn" class="btn btn--primary btn--download" disabled>
+        Télécharger <span id="selCount" class="count">0</span>
+      </button>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
